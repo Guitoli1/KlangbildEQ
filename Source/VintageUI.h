@@ -61,6 +61,7 @@ private:
     VintageLookAndFeel& lnf;
     juce::String name;
     float position = 0.0f, velocity = 0.0f;   // Zeigerstellung 0..1 (inkl. Masse/Feder)
-    float peakHold = 0.0f;
+    float peakHold = 0.0f;   // Haltezeit der Peak-Lampe in Sekunden
+    int peakLevel = 0;       // 0 = aus, 1 = bernstein (ab -6 dBFS), 2 = rot (ab -1 dBFS)
 };
 

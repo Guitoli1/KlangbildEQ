@@ -262,7 +262,19 @@ void VuMeter::update (float avg, float peak, float dt)
         if (position > 1.12f) { position = 1.12f; velocity = 0.0f; }
     }
 
-    peakHold = peak > 0.891f ? 0.5f : juce::jmax (0.0f, peakHold - dt);
+    // PEAK-Lampe in zwei Stufen: bernstein ab -6 dBFS (12 dB über 0 VU), rot ab -1 dBFS; leuchtet 0,8 s nach
+    const int level = peak >= 0.891f ? 2 : (peak >= 0.501f ? 1 : 0);
+    if (level > 0 && level >= peakLevel)
+    {
+        peakLevel = level;
+        peakHold = 0.8f;
+    }
+    peakHold -= dt;
+    if (peakHold <= 0.0f)
+    {
+        peakHold = 0.0f;
+        peakLevel = 0;
+    }
     repaint();
 }
 
@@ -333,8 +345,16 @@ void VuMeter::paint (juce::Graphics& g)
     g.drawText (name, juce::Rectangle<float> (face.getX() + 8.0f, face.getBottom() - 20.0f, 20.0f, 14.0f), juce::Justification::centredLeft);
 
     // Peak-Lampe
-    const auto led = juce::Rectangle<float> (11.0f, 11.0f).withPosition (face.getRight() - 19.0f, face.getBottom() - 19.0f);
-    VintageLookAndFeel::drawJewel (g, led, lampRed, peakHold > 0.0f);
+    const auto led = juce::Rectangle<float> (14.0f, 14.0f).withPosition (face.getRight() - 21.0f, face.getBottom() - 21.0f);
+    const auto peakColour = peakLevel == 2 ? juce::Colour (0xffff2a10) : juce::Colour (0xffff8c00);
+    if (peakLevel > 0)
+    {
+        // kräftiger Schein, damit die Lampe auf dem hellen Ziffernblatt gut sichtbar ist
+        g.setGradientFill (juce::ColourGradient (peakColour.withAlpha (0.75f), led.getCentreX(), led.getCentreY(),
+                                                 peakColour.withAlpha (0.0f), led.getCentreX() + led.getWidth() * 1.4f, led.getCentreY(), true));
+        g.fillEllipse (led.expanded (led.getWidth() * 0.9f));
+    }
+    VintageLookAndFeel::drawJewel (g, led, peakColour, peakLevel > 0);
     g.setFont (lnf.labelFont (9.0f, 0.1f));
     g.setColour (ink.withAlpha (0.7f));
     g.drawText ("PEAK", led.withX (led.getX() - 34.0f).withWidth (30.0f), juce::Justification::centredRight);
