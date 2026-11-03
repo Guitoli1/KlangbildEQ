@@ -252,7 +252,13 @@ void KlangbildAudioProcessor::setStateInformation (const void* data, int sizeInB
 {
     if (auto xml = getXmlFromBinary (data, sizeInBytes))
         if (xml->hasTagName (apvts.state.getType()))
+        {
             apvts.replaceState (juce::ValueTree::fromXml (*xml));
+            // Werte einrasten lassen (z. B. Schalter exakt auf 0/1)
+            for (auto* p : getParameters())
+                if (auto* rp = dynamic_cast<juce::RangedAudioParameter*> (p))
+                    rp->setValueNotifyingHost (rp->convertTo0to1 (rp->convertFrom0to1 (rp->getValue())));
+        }
 }
 
 juce::AudioProcessorEditor* KlangbildAudioProcessor::createEditor()
