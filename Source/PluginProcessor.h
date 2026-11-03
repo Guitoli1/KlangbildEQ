@@ -91,6 +91,7 @@ public:
     juce::AudioProcessorValueTreeState apvts;
     SpectrumFifo preFifo, postFifo;
     std::atomic<double> currentSampleRate { 48000.0 };
+    std::atomic<float> vuL { 0 }, vuR { 0 }, meterL { 0 }, meterR { 0 };   // für die VU-Meter
 
     enum AnalyzerMode { analyzerOff = 0, analyzerPre, analyzerPost, analyzerBoth };
 
@@ -115,6 +116,7 @@ private:
     eq::BiquadState state[2][eq::numBands][eq::maxStages];
 
     double sr = 48000.0;
+    float vuStateL = 0, vuStateR = 0, vuCoef = 0.001f;
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (KlangbildAudioProcessor)
 };

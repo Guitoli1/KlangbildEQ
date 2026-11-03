@@ -13,7 +13,8 @@ Parametrischer 8-Band-Equalizer mit Echtzeit-Analyzer – als **Audio Unit für 
   *Post* (blau, nach dem EQ) oder beides; 3 dB/Okt. Neigung, damit Musik ungefähr flach aussieht
 - **Ziehbare Punkte** direkt in der Kurve, Infobox mit Werten
 - Weiche Parameteränderungen (keine Knackser beim Drehen), volle Automation in Logic
-- Keine Latenz, Mono und Stereo, Fenster frei skalierbar
+- Vintage-Oberfläche mit Röhrenbildschirm und zwei VU-Metern (0 VU = −18 dBFS)
+- Keine Latenz, Mono und Stereo
 
 ### Bedienung
 
@@ -61,10 +62,14 @@ Die Ergebnisse liegen in `build/KlangbildEQ_artefacts/Release/` (AU, VST3, Stand
 |---|---|
 | `Source/EQDsp.h` | Filterformeln (RBJ-Cookbook), Butterworth-Kaskaden, Frequenzgang |
 | `Source/PluginProcessor.*` | Parameter, Audioverarbeitung, Analyzer-Puffer |
-| `Source/PluginEditor.*` | Oberfläche: Analyzer, Kurve, Regler |
+| `Source/PluginEditor.*` | Oberfläche: Röhrenbildschirm-Analyzer, Kurve, Regler |
+| `Source/VintageUI.*` | Vintage-Bausteine: Bakelit-Knöpfe, Kippschalter, Lampen, VU-Meter |
+| `Resources/` | Schriften für die Oberfläche |
 | `.github/workflows/build-macos.yml` | Automatischer Mac-Build inkl. `auval`-Test |
 
 ## Lizenz-Hinweis
+
+Schriften: *Oswald* (SIL Open Font License 1.1) und *Yellowtail* (Apache License 2.0), Lizenztexte in `Resources/`.
 
 JUCE steht unter AGPLv3 bzw. einer kommerziellen Lizenz. Für den privaten Gebrauch ist das
 unproblematisch; wer das Plugin verkaufen oder ohne Quellcode weitergeben möchte, braucht eine JUCE-Lizenz.

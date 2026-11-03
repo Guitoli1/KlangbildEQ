@@ -40,9 +40,15 @@ juce_add_plugin(KlangbildEQ
     VST3_CATEGORIES Fx EQ
     COPY_PLUGIN_AFTER_BUILD FALSE)
 
+juce_add_binary_data(EQAssets SOURCES
+    Resources/Yellowtail-Regular.ttf
+    Resources/Oswald-Medium.ttf
+    Resources/Oswald-Regular.ttf)
+
 target_sources(KlangbildEQ PRIVATE
     Source/PluginProcessor.cpp
-    Source/PluginEditor.cpp)
+    Source/PluginEditor.cpp
+    Source/VintageUI.cpp)
 
 target_include_directories(KlangbildEQ PRIVATE Source)
 
@@ -54,6 +60,7 @@ target_compile_definitions(KlangbildEQ PUBLIC
 
 target_link_libraries(KlangbildEQ
     PRIVATE
+        EQAssets
         juce::juce_audio_utils
         juce::juce_dsp
     PUBLIC

@@ -149,6 +149,8 @@ void KlangbildAudioProcessor::prepareToPlay (double sampleRate, int)
 
     preFifo.reset();
     postFifo.reset();
+    vuCoef = (float) (1.0 - std::exp (-1.0 / (0.01 * sampleRate)));
+    vuStateL = vuStateR = 0;
 }
 
 void KlangbildAudioProcessor::processBlock (juce::AudioBuffer<float>& buffer, juce::MidiBuffer&)
@@ -239,6 +241,25 @@ void KlangbildAudioProcessor::processBlock (juce::AudioBuffer<float>& buffer, ju
 
     if (numCh > 0 && (mode == analyzerPost || mode == analyzerBoth))
         pushToFifo (postFifo);
+
+    // Pegel für die VU-Meter (gleichgerichteter Mittelwert + Spitze)
+    if (numCh > 0)
+    {
+        const float* l = buffer.getReadPointer (0);
+        const float* r = numCh > 1 ? buffer.getReadPointer (1) : l;
+        float pl = 0, pr = 0;
+        for (int i = 0; i < numSamples; ++i)
+        {
+            vuStateL += (std::abs (l[i]) - vuStateL) * vuCoef;
+            vuStateR += (std::abs (r[i]) - vuStateR) * vuCoef;
+            pl = juce::jmax (pl, std::abs (l[i]));
+            pr = juce::jmax (pr, std::abs (r[i]));
+        }
+        vuL.store (vuStateL);
+        vuR.store (vuStateR);
+        meterL.store (juce::jmax (pl, meterL.load()));
+        meterR.store (juce::jmax (pr, meterR.load()));
+    }
 }
 
 //==============================================================================

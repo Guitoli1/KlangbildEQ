@@ -1,5 +1,7 @@
 #include "PluginEditor.h"
 
+using namespace vintage;
+
 namespace
 {
 constexpr float minFreq = 20.0f, maxFreq = 20000.0f;
@@ -8,117 +10,23 @@ constexpr float analyzerTopDb = 0.0f, analyzerBottomDb = -90.0f;
 constexpr float tiltDbPerOct = 3.0f;   // Neigung, damit Musik/Rosa Rauschen eher flach erscheint
 }
 
-//==============================================================================
-KlangbildLookAndFeel::KlangbildLookAndFeel()
+// Farbzuordnung für den Röhrenbildschirm
+namespace theme
 {
-    setColour (juce::ResizableWindow::backgroundColourId, theme::background);
-    setColour (juce::Label::textColourId, theme::textDim);
-    setColour (juce::Slider::textBoxTextColourId, theme::text);
-    setColour (juce::Slider::textBoxOutlineColourId, juce::Colours::transparentBlack);
-    setColour (juce::Slider::textBoxBackgroundColourId, juce::Colours::transparentBlack);
-    setColour (juce::Slider::textBoxHighlightColourId, theme::postSpectrum.withAlpha (0.4f));
-    setColour (juce::ComboBox::backgroundColourId, theme::display);
-    setColour (juce::ComboBox::outlineColourId, theme::gridStrong);
-    setColour (juce::ComboBox::textColourId, theme::text);
-    setColour (juce::ComboBox::arrowColourId, theme::textDim);
-    setColour (juce::PopupMenu::backgroundColourId, theme::panel);
-    setColour (juce::PopupMenu::textColourId, theme::text);
-    setColour (juce::PopupMenu::highlightedBackgroundColourId, theme::gridStrong);
-    setColour (juce::PopupMenu::highlightedTextColourId, juce::Colours::white);
-    setColour (juce::TextButton::textColourOffId, theme::textDim);
-    setColour (juce::TextButton::textColourOnId, juce::Colours::white);
-    setColour (juce::ToggleButton::textColourId, theme::text);
-    setColour (juce::TextEditor::backgroundColourId, theme::display);
-    setColour (juce::TextEditor::textColourId, theme::text);
-    setColour (juce::CaretComponent::caretColourId, theme::text);
-}
-
-void KlangbildLookAndFeel::drawRotarySlider (juce::Graphics& g, int x, int y, int w, int h, float pos,
-                                             float startAngle, float endAngle, juce::Slider& slider)
-{
-    const auto bounds = juce::Rectangle<float> ((float) x, (float) y, (float) w, (float) h).reduced (4.0f);
-    const float r = juce::jmin (bounds.getWidth(), bounds.getHeight()) * 0.5f;
-    const auto c = bounds.getCentre();
-    const float lineW = 4.0f, arcR = r - lineW * 0.5f;
-
-    auto colour = slider.findColour (juce::Slider::rotarySliderFillColourId);
-    if (! slider.isEnabled())
-        colour = theme::textDim.withAlpha (0.4f);
-
-    juce::Path bg;
-    bg.addCentredArc (c.x, c.y, arcR, arcR, 0.0f, startAngle, endAngle, true);
-    g.setColour (theme::gridStrong);
-    g.strokePath (bg, juce::PathStrokeType (lineW, juce::PathStrokeType::curved, juce::PathStrokeType::rounded));
-
-    float fromAngle = startAngle;
-    if (slider.getMinimum() < 0.0 && slider.getMaximum() > 0.0)
-        fromAngle = startAngle + (float) slider.valueToProportionOfLength (0.0) * (endAngle - startAngle);
-    const float toAngle = startAngle + pos * (endAngle - startAngle);
-
-    if (std::abs (toAngle - fromAngle) > 0.001f)
-    {
-        juce::Path val;
-        val.addCentredArc (c.x, c.y, arcR, arcR, 0.0f, juce::jmin (fromAngle, toAngle), juce::jmax (fromAngle, toAngle), true);
-        g.setColour (colour);
-        g.strokePath (val, juce::PathStrokeType (lineW, juce::PathStrokeType::curved, juce::PathStrokeType::rounded));
-    }
-
-    const float knobR = r - lineW - 4.0f;
-    g.setColour (theme::panel.brighter (0.25f));
-    g.fillEllipse (juce::Rectangle<float> (knobR * 2, knobR * 2).withCentre (c));
-    g.setColour (theme::gridStrong.brighter (0.2f));
-    g.drawEllipse (juce::Rectangle<float> (knobR * 2, knobR * 2).withCentre (c), 1.0f);
-
-    const juce::Point<float> tip = c.getPointOnCircumference (knobR - 3.0f, toAngle);
-    const juce::Point<float> inner = c.getPointOnCircumference (knobR * 0.35f, toAngle);
-    g.setColour (slider.isEnabled() ? theme::curve : theme::textDim);
-    g.drawLine ({ inner, tip }, 2.0f);
-}
-
-void KlangbildLookAndFeel::drawButtonBackground (juce::Graphics& g, juce::Button& b, const juce::Colour&,
-                                                 bool over, bool down)
-{
-    const auto r = b.getLocalBounds().toFloat().reduced (0.5f);
-    const auto accent = b.findColour (juce::TextButton::buttonOnColourId);
-    const bool on = b.getToggleState();
-
-    g.setColour (on ? accent.withAlpha (0.22f) : theme::display.brighter (over ? 0.08f : 0.0f).darker (down ? 0.2f : 0.0f));
-    g.fillRoundedRectangle (r, 5.0f);
-    g.setColour (on ? accent : theme::gridStrong);
-    g.drawRoundedRectangle (r, 5.0f, on ? 1.5f : 1.0f);
-
-    // kleiner Farbpunkt links
-    g.setColour (accent.withAlpha (on ? 1.0f : 0.6f));
-    g.fillEllipse (r.getX() + 8.0f, r.getCentreY() - 3.0f, 6.0f, 6.0f);
-}
-
-void KlangbildLookAndFeel::drawButtonText (juce::Graphics& g, juce::TextButton& b, bool, bool)
-{
-    g.setColour (b.findColour (b.getToggleState() ? juce::TextButton::textColourOnId : juce::TextButton::textColourOffId));
-    g.setFont (juce::FontOptions (13.0f, b.getToggleState() ? juce::Font::bold : juce::Font::plain));
-    g.drawFittedText (b.getButtonText(), b.getLocalBounds().withTrimmedLeft (18).withTrimmedRight (4),
-                      juce::Justification::centred, 1, 0.8f);
-}
-
-void KlangbildLookAndFeel::drawToggleButton (juce::Graphics& g, juce::ToggleButton& b, bool over, bool)
-{
-    const auto r = b.getLocalBounds().toFloat();
-    const auto sw = juce::Rectangle<float> (34.0f, 18.0f).withY (r.getCentreY() - 9.0f).withX (r.getX() + 2.0f);
-    const bool on = b.getToggleState();
-    const auto accent = b.findColour (juce::ToggleButton::tickColourId);
-
-    g.setColour (on ? accent.withAlpha (0.85f) : theme::gridStrong.brighter (over ? 0.15f : 0.0f));
-    g.fillRoundedRectangle (sw, 9.0f);
-    g.setColour (juce::Colours::white);
-    g.fillEllipse (juce::Rectangle<float> (14.0f, 14.0f).withCentre ({ on ? sw.getRight() - 9.0f : sw.getX() + 9.0f, sw.getCentreY() }));
-
-    g.setColour (b.findColour (juce::ToggleButton::textColourId));
-    g.setFont (juce::FontOptions (13.0f));
-    g.drawText (b.getButtonText(), r.withTrimmedLeft (sw.getRight() + 8.0f), juce::Justification::centredLeft);
+const juce::Colour grid         = crt::grid;
+const juce::Colour gridStrong   = crt::gridStrong;
+const juce::Colour textDim      = crt::label;
+const juce::Colour text         = crt::phosphor;
+const juce::Colour curve        = crt::curve;
+const juce::Colour preSpectrum  = crt::phosphor.darker (1.4f);
+const juce::Colour postSpectrum = crt::postSpectrum;
+const juce::Colour panel        { 0xff07110a };
+const juce::Colour display      = crt::screenCentre;
+inline juce::Colour band (int i) { return crt::band (i); }
 }
 
 //==============================================================================
-ResponseDisplay::ResponseDisplay (KlangbildAudioProcessor& p) : proc (p)
+ResponseDisplay::ResponseDisplay (KlangbildAudioProcessor& p, VintageLookAndFeel& l) : proc (p), lnf (l)
 {
     setOpaque (false);
     startTimerHz (30);
@@ -198,6 +106,44 @@ void ResponseDisplay::resized()
     totalCurveDb.assign (n, 0.0f);
     selectedCurveDb.assign (n, 0.0f);
     updateCurves();
+    renderOverlay();
+}
+
+void ResponseDisplay::renderOverlay()
+{
+    if (getWidth() <= 0 || getHeight() <= 0)
+        return;
+    overlay = juce::Image (juce::Image::ARGB, getWidth(), getHeight(), true);
+    juce::Graphics g (overlay);
+    const auto b = getLocalBounds().toFloat();
+
+    // Zeilenraster der Bildröhre
+    g.setColour (juce::Colours::black.withAlpha (0.16f));
+    for (int y = 0; y < getHeight(); y += 3)
+        g.drawHorizontalLine (y, 0.0f, b.getWidth());
+
+    // Vignette
+    g.setGradientFill (juce::ColourGradient (juce::Colours::transparentBlack, b.getCentreX(), b.getCentreY(),
+                                             juce::Colours::black.withAlpha (0.6f), b.getX(), b.getY(), true));
+    g.fillRect (b);
+
+    // Glasreflex
+    g.setGradientFill (juce::ColourGradient (juce::Colours::white.withAlpha (0.09f), b.getX(), b.getY(),
+                                             juce::Colours::white.withAlpha (0.0f), b.getX() + b.getWidth() * 0.35f, b.getY() + b.getHeight() * 0.5f, false));
+    g.fillRoundedRectangle (b.reduced (6.0f), 16.0f);
+
+    // abgerundete Ecken der Röhre
+    juce::Path corners;
+    corners.addRectangle (b);
+    corners.addRoundedRectangle (b, 18.0f);
+    corners.setUsingNonZeroWinding (false);
+    g.setColour (juce::Colour (0xff0b0a09));
+    g.fillPath (corners);
+}
+
+void ResponseDisplay::paintOverChildren (juce::Graphics& g)
+{
+    g.drawImageAt (overlay, 0, 0);
 }
 
 void ResponseDisplay::updateCurves()
@@ -301,11 +247,13 @@ void ResponseDisplay::paint (juce::Graphics& g)
     const auto bounds = getLocalBounds().toFloat();
     const auto a = plotArea();
 
-    g.setColour (theme::display);
-    g.fillRoundedRectangle (bounds, 8.0f);
+    // Röhrenbildschirm
+    g.setGradientFill (juce::ColourGradient (crt::screenCentre, bounds.getCentreX(), bounds.getCentreY(),
+                                             crt::screenEdge, bounds.getX(), bounds.getY(), true));
+    g.fillRect (bounds);
 
     // --- Raster ---------------------------------------------------------
-    g.setFont (juce::FontOptions (11.0f));
+    g.setFont (lnf.labelFontRegular (12.0f));
     const int freqLines[] = { 30, 40, 50, 60, 70, 80, 90, 100, 200, 300, 400, 500, 600, 700, 800, 900,
                                 1000, 2000, 3000, 4000, 5000, 6000, 7000, 8000, 9000, 10000 };
     for (int f : freqLines)
@@ -362,11 +310,13 @@ void ResponseDisplay::paint (juce::Graphics& g)
     }
     if (! postDb.empty())
     {
-        g.setGradientFill (juce::ColourGradient (theme::postSpectrum.withAlpha (0.28f), 0, a.getY(),
-                                                 theme::postSpectrum.withAlpha (0.04f), 0, a.getBottom(), false));
+        g.setGradientFill (juce::ColourGradient (theme::postSpectrum.withAlpha (0.13f), 0, a.getY(),
+                                                 theme::postSpectrum.withAlpha (0.02f), 0, a.getBottom(), false));
         g.fillPath (spectrumPath (postDb, true));
+        g.setColour (theme::postSpectrum.withAlpha (0.18f));
+        g.strokePath (spectrumPath (postDb, false), juce::PathStrokeType (4.0f));
         g.setColour (theme::postSpectrum.withAlpha (0.85f));
-        g.strokePath (spectrumPath (postDb, false), juce::PathStrokeType (1.2f));
+        g.strokePath (spectrumPath (postDb, false), juce::PathStrokeType (1.3f));
     }
 
     // --- Kurve des gewählten Bands ---------------------------------------
@@ -396,8 +346,10 @@ void ResponseDisplay::paint (juce::Graphics& g)
             if (i == 0) p.startNewSubPath (a.getX(), y);
             else        p.lineTo (a.getX() + (float) i, y);
         }
-        g.setColour (juce::Colours::black.withAlpha (0.5f));
-        g.strokePath (p, juce::PathStrokeType (4.5f, juce::PathStrokeType::curved, juce::PathStrokeType::rounded));
+        g.setColour (theme::curve.withAlpha (0.10f));
+        g.strokePath (p, juce::PathStrokeType (10.0f, juce::PathStrokeType::curved, juce::PathStrokeType::rounded));
+        g.setColour (theme::curve.withAlpha (0.22f));
+        g.strokePath (p, juce::PathStrokeType (5.0f, juce::PathStrokeType::curved, juce::PathStrokeType::rounded));
         g.setColour (theme::curve);
         g.strokePath (p, juce::PathStrokeType (2.2f, juce::PathStrokeType::curved, juce::PathStrokeType::rounded));
     }
@@ -430,11 +382,11 @@ void ResponseDisplay::paint (juce::Graphics& g)
             }
             if (b == selected)
             {
-                g.setColour (juce::Colours::white);
+                g.setColour (theme::curve);
                 g.drawEllipse (circle.expanded (2.5f), 1.5f);
             }
             g.setColour (on ? juce::Colours::black.withAlpha (0.8f) : col.withAlpha (0.8f));
-            g.setFont (juce::FontOptions (11.0f, juce::Font::bold));
+            g.setFont (lnf.labelFont (12.0f, 0.04f));
             g.drawText (juce::String (b + 1), circle, juce::Justification::centred);
         }
     }
@@ -458,14 +410,14 @@ void ResponseDisplay::paint (juce::Graphics& g)
         if (box.getY() < a.getY() + 2.0f) box.setY (pos.y + 18.0f);
         box = box.constrainedWithin (a.reduced (2.0f));
 
-        g.setColour (theme::panel.withAlpha (0.95f));
+        g.setColour (theme::panel.withAlpha (0.92f));
         g.fillRoundedRectangle (box, 5.0f);
         g.setColour (theme::band (infoBand));
         g.drawRoundedRectangle (box, 5.0f, 1.0f);
-        g.setFont (juce::FontOptions (11.0f, juce::Font::bold));
+        g.setFont (lnf.labelFont (12.0f, 0.04f));
         g.drawText (title, box.withHeight (20.0f).withTrimmedTop (3.0f), juce::Justification::centred);
         g.setColour (theme::text);
-        g.setFont (juce::FontOptions (12.0f));
+        g.setFont (lnf.labelFontRegular (13.0f));
         g.drawText (line, box.withTrimmedTop (18.0f).withTrimmedBottom (3.0f), juce::Justification::centred);
     }
 }
@@ -564,75 +516,56 @@ void ResponseDisplay::mouseWheelMove (const juce::MouseEvent& e, const juce::Mou
 
 //==============================================================================
 KlangbildAudioProcessorEditor::KlangbildAudioProcessorEditor (KlangbildAudioProcessor& p)
-    : AudioProcessorEditor (&p), proc (p), display (p)
+    : AudioProcessorEditor (&p), proc (p), display (p, lnf)
 {
     setLookAndFeel (&lnf);
 
     addAndMakeVisible (display);
     display.onBandSelected = [this] (int b) { selectBand (b); };
+    addAndMakeVisible (vuLeft);
+    addAndMakeVisible (vuRight);
 
     const auto names = KlangbildAudioProcessor::bandNames();
     for (int b = 0; b < eq::numBands; ++b)
     {
         auto& btn = bandButtons[(size_t) b];
         btn.setButtonText (names[b]);
-        btn.setColour (juce::TextButton::buttonOnColourId, theme::band (b));
+        btn.setColour (juce::TextButton::buttonOnColourId, crt::band (b));
         btn.onClick = [this, b] { selectBand (b); };
         addAndMakeVisible (btn);
     }
 
-    auto setupSlider = [this] (juce::Slider& s, juce::Label& l, const juce::String& text)
+    for (auto* s : { &freqSlider, &gainSlider, &qSlider, &outSlider })
     {
-        s.setSliderStyle (juce::Slider::RotaryHorizontalVerticalDrag);
-        s.setTextBoxStyle (juce::Slider::TextBoxBelow, false, 90, 18);
-        s.setRotaryParameters (juce::MathConstants<float>::pi * 1.25f, juce::MathConstants<float>::pi * 2.75f, true);
-        addAndMakeVisible (s);
-        l.setText (text, juce::dontSendNotification);
-        l.setJustificationType (juce::Justification::centred);
-        l.setFont (juce::FontOptions (11.0f, juce::Font::bold));
-        addAndMakeVisible (l);
-    };
-    setupSlider (freqSlider, freqLabel, "FREQ");
-    setupSlider (gainSlider, gainLabel, "GAIN");
-    setupSlider (qSlider,    qLabel,    "Q");
-    setupSlider (outSlider,  outLabel,  "OUTPUT");
-    outSlider.setColour (juce::Slider::rotarySliderFillColourId, theme::curve);
+        s->setSliderStyle (juce::Slider::RotaryHorizontalVerticalDrag);
+        s->setTextBoxStyle (juce::Slider::NoTextBox, true, 0, 0);
+        s->setRotaryParameters (juce::MathConstants<float>::pi * 1.2f, juce::MathConstants<float>::pi * 2.8f, true);
+        s->setMouseDragSensitivity (220);
+        addAndMakeVisible (*s);
+    }
 
+    onButton.setButtonText ("on");   // zeigt AN/AUS neben dem Schalter
     addAndMakeVisible (onButton);
 
     slopeBox.addItemList ({ "12 dB/Okt", "24 dB/Okt", "36 dB/Okt", "48 dB/Okt" }, 1);
     addAndMakeVisible (slopeBox);
-    slopeLabel.setText ("FLANKE", juce::dontSendNotification);
-    slopeLabel.setFont (juce::FontOptions (11.0f, juce::Font::bold));
-    addAndMakeVisible (slopeLabel);
 
+    analyzerBox.getProperties().set ("plate", true);
     analyzerBox.addItemList ({ "Aus", "Pre", "Post", "Pre + Post" }, 1);
     addAndMakeVisible (analyzerBox);
-    analyzerLabel.setText ("ANALYZER", juce::dontSendNotification);
-    analyzerLabel.setFont (juce::FontOptions (11.0f, juce::Font::bold));
-    analyzerLabel.setJustificationType (juce::Justification::centredRight);
-    addAndMakeVisible (analyzerLabel);
-
-    hintLabel.setText (juce::CharPointer_UTF8 ("Ziehen: Freq/Gain  \xc2\xb7  Mausrad: Q  \xc2\xb7  Doppelklick: an/aus"),
-                       juce::dontSendNotification);
-    hintLabel.setFont (juce::FontOptions (11.0f));
-    hintLabel.setJustificationType (juce::Justification::bottomRight);
-    hintLabel.setMinimumHorizontalScale (1.0f);
-    addAndMakeVisible (hintLabel);
 
     outAtt      = std::make_unique<SliderAttachment> (proc.apvts, "output", outSlider);
     analyzerAtt = std::make_unique<ComboAttachment>  (proc.apvts, "analyzer", analyzerBox);
     outSlider.setDoubleClickReturnValue (true, 0.0);
 
     selectBand (2);
-
-    setResizable (true, true);
-    setResizeLimits (760, 480, 1800, 1100);
-    setSize (980, 600);
+    setSize (1000, 700);
+    startTimerHz (60);
 }
 
 KlangbildAudioProcessorEditor::~KlangbildAudioProcessorEditor()
 {
+    stopTimer();
     setLookAndFeel (nullptr);
 }
 
@@ -640,98 +573,216 @@ void KlangbildAudioProcessorEditor::selectBand (int band)
 {
     selectedBand = band;
     display.setSelectedBand (band);
-
     for (int b = 0; b < eq::numBands; ++b)
         bandButtons[(size_t) b].setToggleState (b == band, juce::dontSendNotification);
 
     freqAtt.reset(); gainAtt.reset(); qAtt.reset(); onAtt.reset(); slopeAtt.reset();
-
     auto id = [band] (const char* n) { return KlangbildAudioProcessor::paramID (band, n); };
     freqAtt = std::make_unique<SliderAttachment> (proc.apvts, id ("freq"), freqSlider);
     gainAtt = std::make_unique<SliderAttachment> (proc.apvts, id ("gain"), gainSlider);
     qAtt    = std::make_unique<SliderAttachment> (proc.apvts, id ("q"),    qSlider);
     onAtt   = std::make_unique<ButtonAttachment> (proc.apvts, id ("on"),   onButton);
 
-    for (auto* s : { &freqSlider, &gainSlider, &qSlider })
-    {
-        s->setColour (juce::Slider::rotarySliderFillColourId, theme::band (band));
-        if (auto* rp = dynamic_cast<juce::RangedAudioParameter*> (proc.apvts.getParameter (
-                s == &freqSlider ? id ("freq") : s == &gainSlider ? id ("gain") : id ("q"))))
+    for (auto [s, n] : { std::pair { &freqSlider, "freq" }, std::pair { &gainSlider, "gain" }, std::pair { &qSlider, "q" } })
+        if (auto* rp = proc.apvts.getParameter (id (n)))
             s->setDoubleClickReturnValue (true, rp->convertFrom0to1 (rp->getDefaultValue()));
-    }
-    onButton.setColour (juce::ToggleButton::tickColourId, theme::band (band));
+
+    onButton.getProperties().set ("lamp", (int) crt::band (band).getARGB());
 
     const bool cut = eq::isCut (eq::typeForBand (band));
     gainSlider.setEnabled (! cut);
-    gainLabel.setAlpha (cut ? 0.4f : 1.0f);
+    gainSlider.setAlpha (cut ? 0.45f : 1.0f);
     slopeBox.setVisible (cut);
-    slopeLabel.setVisible (cut);
     if (cut)
         slopeAtt = std::make_unique<ComboAttachment> (proc.apvts, id ("slope"), slopeBox);
-
     repaint();
+}
+
+void KlangbildAudioProcessorEditor::timerCallback()
+{
+    constexpr float dt = 1.0f / 60.0f;
+    vuLeft.update (proc.vuL.load(), proc.meterL.exchange (0.0f), dt);
+    vuRight.update (proc.vuR.load(), proc.meterR.exchange (0.0f), dt);
+
+    for (int b = 0; b < eq::numBands; ++b)
+    {
+        auto& btn = bandButtons[(size_t) b];
+        const bool on = proc.getBandSettings (b).on;
+        if ((bool) btn.getProperties()["bandOn"] != on)
+        {
+            btn.getProperties().set ("bandOn", on);
+            btn.repaint();
+        }
+    }
+}
+
+//==============================================================================
+void KlangbildAudioProcessorEditor::renderTextures()
+{
+    tolexImage = juce::Image (juce::Image::RGB, juce::jmax (1, getWidth()), juce::jmax (1, getHeight()), false);
+    {
+        juce::Image::BitmapData data (tolexImage, juce::Image::BitmapData::writeOnly);
+        juce::Random rnd (7);
+        for (int y = 0; y < tolexImage.getHeight(); ++y)
+            for (int x = 0; x < tolexImage.getWidth(); ++x)
+            {
+                const int weave = ((x + y) % 4 == 0 || (x - y + 4096) % 4 == 0) ? -5 : 0;
+                const int n = rnd.nextInt (13) - 6 + weave;
+                data.setPixelColour (x, y, juce::Colour ((juce::uint8) juce::jlimit (0, 255, 34 + n),
+                                                         (juce::uint8) juce::jlimit (0, 255, 28 + n),
+                                                         (juce::uint8) juce::jlimit (0, 255, 24 + n)));
+            }
+    }
+
+    if (faceplate.isEmpty())
+        return;
+    faceplateImage = juce::Image (juce::Image::ARGB, faceplate.getWidth(), faceplate.getHeight(), true);
+    juce::Graphics g (faceplateImage);
+    const auto r = faceplateImage.getBounds().toFloat();
+    g.setGradientFill (juce::ColourGradient (cream.brighter (0.06f), 0, 0, creamDark, 0, r.getHeight(), false));
+    g.fillRoundedRectangle (r, 6.0f);
+    juce::Random rnd (3);
+    for (int y = 0; y < faceplate.getHeight(); ++y)
+    {
+        g.setColour ((rnd.nextBool() ? juce::Colours::white : juce::Colour (0xff6b5534)).withAlpha (0.015f + rnd.nextFloat() * 0.035f));
+        g.drawHorizontalLine (y, 0.0f, r.getWidth());
+    }
+    g.setGradientFill (juce::ColourGradient (juce::Colours::transparentBlack, r.getCentreX(), r.getCentreY(),
+                                             juce::Colour (0x30694a1c), 0, 0, true));
+    g.fillRoundedRectangle (r, 6.0f);
+}
+
+void KlangbildAudioProcessorEditor::drawEngraved (juce::Graphics& g, const juce::String& text, juce::Rectangle<float> r,
+                                                  juce::Font f, juce::Justification j)
+{
+    g.setFont (f);
+    g.setColour (juce::Colours::white.withAlpha (0.55f));
+    g.drawText (text, r.translated (0.0f, 1.0f), j);
+    g.setColour (ink);
+    g.drawText (text, r, j);
 }
 
 void KlangbildAudioProcessorEditor::paint (juce::Graphics& g)
 {
-    g.fillAll (theme::background);
+    g.drawImageAt (tolexImage, 0, 0);
 
-    auto header = getLocalBounds().removeFromTop (44).reduced (16, 0);
-    g.setColour (theme::curve);
-    g.setFont (juce::FontOptions (19.0f, juce::Font::bold));
-    g.drawText ("KLANGBILD", header, juce::Justification::centredLeft);
-    const int w = juce::GlyphArrangement::getStringWidthInt (juce::FontOptions (19.0f, juce::Font::bold), "KLANGBILD");
-    g.setColour (theme::postSpectrum);
-    g.setFont (juce::FontOptions (19.0f));
-    g.drawText ("EQ", header.withTrimmedLeft (w + 8), juce::Justification::centredLeft);
+    // Logo
+    const auto scriptF = lnf.scriptFont (64.0f);
+    const auto logoArea = juce::Rectangle<float> (40.0f, 8.0f, 400.0f, 84.0f);
+    g.setFont (scriptF);
+    g.setColour (juce::Colours::black.withAlpha (0.55f));
+    g.drawText ("Klangbild", logoArea.translated (2.0f, 3.0f), juce::Justification::centredLeft);
+    g.setColour (logo);
+    g.drawText ("Klangbild", logoArea, juce::Justification::centredLeft);
+    const float sw = (float) juce::GlyphArrangement::getStringWidthInt (scriptF, "Klangbild");
+    g.setColour (gold);
+    g.setFont (lnf.labelFont (26.0f, 0.35f));
+    g.drawText ("EQ", juce::Rectangle<float> (logoArea.getX() + sw + 14.0f, logoArea.getY() + 30.0f, 120.0f, 40.0f), juce::Justification::centredLeft);
+    g.setColour (logo.withAlpha (0.55f));
+    g.setFont (lnf.labelFont (12.0f, 0.3f));
+    g.drawText (juce::CharPointer_UTF8 ("8-BAND-EQUALIZER \xc2\xb7 ANALYZER"), juce::Rectangle<float> (44.0f, 90.0f, 400.0f, 16.0f),
+                juce::Justification::centredLeft);
+    g.setColour (logo.withAlpha (0.6f));
+    g.setFont (lnf.labelFont (10.0f, 0.3f));
+    g.drawText ("ANALYZER", analyzerArea.toFloat().withY ((float) analyzerArea.getY() - 15.0f).withHeight (13.0f), juce::Justification::centredLeft);
 
-    auto bottom = getLocalBounds().removeFromBottom (160).reduced (12, 8).toFloat();
-    g.setColour (theme::panel);
-    g.fillRoundedRectangle (bottom, 8.0f);
+    // Bildschirmrahmen
+    const auto bz = bezel.toFloat();
+    g.setColour (juce::Colours::black.withAlpha (0.55f));
+    g.fillRoundedRectangle (bz.translated (2.0f, 4.0f), 14.0f);
+    g.setGradientFill (juce::ColourGradient (juce::Colour (0xffe2e2e2), 0, bz.getY(), juce::Colour (0xff5c5c5c), 0, bz.getBottom(), false));
+    g.fillRoundedRectangle (bz, 14.0f);
+    g.setGradientFill (juce::ColourGradient (juce::Colour (0xff2b2622), 0, bz.getY(), juce::Colour (0xff100d0b), 0, bz.getBottom(), false));
+    g.fillRoundedRectangle (bz.reduced (4.0f), 11.0f);
+    g.setColour (juce::Colours::black);
+    g.fillRoundedRectangle (display.getBounds().toFloat().expanded (3.0f), 20.0f);
+    for (auto [x, y, a] : { std::tuple { bz.getX() + 13.0f, bz.getY() + 13.0f, 0.4f }, std::tuple { bz.getRight() - 13.0f, bz.getY() + 13.0f, 1.3f },
+                            std::tuple { bz.getX() + 13.0f, bz.getBottom() - 13.0f, 2.2f }, std::tuple { bz.getRight() - 13.0f, bz.getBottom() - 13.0f, 0.9f } })
+        VintageLookAndFeel::drawScrew (g, { x, y }, 4.5f, a);
+
+    // Frontplatte
+    const auto fp = faceplate.toFloat();
+    g.setColour (juce::Colours::black.withAlpha (0.6f));
+    g.fillRoundedRectangle (fp.expanded (4.0f).translated (0, 2.0f), 9.0f);
+    g.setGradientFill (juce::ColourGradient (gold.brighter (0.3f), 0, fp.getY(), gold.darker (0.6f), 0, fp.getBottom(), false));
+    g.fillRoundedRectangle (fp.expanded (3.0f), 8.0f);
+    g.drawImageAt (faceplateImage, faceplate.getX(), faceplate.getY());
+    g.setColour (juce::Colours::black.withAlpha (0.35f));
+    g.drawRoundedRectangle (fp, 6.0f, 1.0f);
+    for (auto [x, y, a] : { std::tuple { fp.getX() + 12.0f, fp.getY() + 12.0f, 0.4f }, std::tuple { fp.getRight() - 12.0f, fp.getY() + 12.0f, 1.3f },
+                            std::tuple { fp.getX() + 12.0f, fp.getBottom() - 12.0f, 2.2f }, std::tuple { fp.getRight() - 12.0f, fp.getBottom() - 12.0f, 0.9f } })
+        VintageLookAndFeel::drawScrew (g, { x, y }, 5.0f, a);
+
+    // Beschriftungen
+    const auto lf = lnf.labelFont (13.0f, 0.14f);
+    drawEngraved (g, "BANDWAHL", bandLabelArea.toFloat(), lf, juce::Justification::centredLeft);
+    for (auto [s, n] : { std::pair { &freqSlider, "FREQUENZ" }, std::pair { &gainSlider, "GAIN" }, std::pair { &qSlider, "GÜTE (Q)" }, std::pair { &outSlider, "PEGEL" } })
+    {
+        const auto sb = s->getBounds().toFloat();
+        drawEngraved (g, juce::String (juce::CharPointer_UTF8 (n)), { sb.getX(), sb.getBottom() - 2.0f, sb.getWidth(), 18.0f }, lf, juce::Justification::centred);
+    }
+    drawEngraved (g, KlangbildAudioProcessor::bandNames()[selectedBand].toUpperCase(), onLabelArea.toFloat(), lf, juce::Justification::centredLeft);
+    if (slopeBox.isVisible())
+        drawEngraved (g, "FLANKE", slopeLabelArea.toFloat(), lf, juce::Justification::centredLeft);
+    drawEngraved (g, juce::CharPointer_UTF8 ("Punkt ziehen: Frequenz/Gain  \xc2\xb7  Mausrad: G\xc3\xbc" "te  \xc2\xb7  Doppelklick: an/aus"),
+                  hintArea.toFloat(), lnf.labelFontRegular (11.5f), juce::Justification::centredLeft);
+
+    // Trennlinien zwischen den Spalten
+    for (int x : { freqSlider.getX() - 8, onButton.getX() - 11, outSlider.getX() - 6 })
+        for (int dx : { -2, 2 })
+        {
+            g.setColour (ink.withAlpha (0.35f));
+            g.drawVerticalLine (x + dx, fp.getY() + 14.0f, fp.getBottom() - 14.0f);
+            g.setColour (juce::Colours::white.withAlpha (0.45f));
+            g.drawVerticalLine (x + dx + 1, fp.getY() + 14.0f, fp.getBottom() - 14.0f);
+        }
 }
 
 void KlangbildAudioProcessorEditor::resized()
 {
-    auto area = getLocalBounds();
+    const int W = getWidth();
+    vuRight.setBounds (W - 36 - 200, 20, 200, 130);
+    vuLeft.setBounds (W - 36 - 200 - 16 - 200, 20, 200, 130);
 
-    auto header = area.removeFromTop (44).reduced (16, 9);
-    analyzerBox.setBounds (header.removeFromRight (130));
-    analyzerLabel.setBounds (header.removeFromRight (90).withTrimmedRight (8));
+    analyzerArea = { 44, 128, 230, 32 };
+    analyzerBox.setBounds (analyzerArea);
 
-    auto bottom = area.removeFromBottom (160).reduced (12, 8).reduced (12, 10);
-    display.setBounds (area.reduced (12, 0));
+    bezel = { 24, 178, W - 48, 318 };
+    display.setBounds (bezel.reduced (20, 18));
 
-    auto outCol = bottom.removeFromRight (100);
-    outLabel.setBounds (outCol.removeFromTop (16));
-    outSlider.setBounds (outCol);
+    faceplate = { 24, 510, W - 48, 172 };
+    auto inner = faceplate.reduced (30, 12);
 
-    bottom.removeFromRight (16);
-    auto buttonRow = bottom.removeFromTop (28);
-    const int bw = (buttonRow.getWidth() - 4 * (eq::numBands - 1)) / eq::numBands;
+    // Spalte 1: Bandwahl
+    auto bands = inner.removeFromLeft (318);
+    bandLabelArea = bands.removeFromTop (22).withTrimmedTop (4);
+    bands.removeFromTop (4);
+    const int bw = 76, bh = 34, gap = 4;
     for (int b = 0; b < eq::numBands; ++b)
     {
-        bandButtons[(size_t) b].setBounds (buttonRow.removeFromLeft (bw));
-        buttonRow.removeFromLeft (4);
+        const int row = b / 4, col = b % 4;
+        bandButtons[(size_t) b].setBounds (bands.getX() + col * (bw + gap), bands.getY() + row * (bh + 6), bw, bh);
     }
+    hintArea = { bands.getX(), bands.getY() + 2 * (bh + 6) + 6, 330, 18 };
 
-    bottom.removeFromTop (8);
-    auto knob = [&] (juce::Slider& s, juce::Label& l)
-    {
-        auto col = bottom.removeFromLeft (100);
-        l.setBounds (col.removeFromTop (16));
-        s.setBounds (col);
-    };
-    knob (freqSlider, freqLabel);
-    knob (gainSlider, gainLabel);
-    knob (qSlider, qLabel);
+    inner.removeFromLeft (16);
+    // Spalte 2: Knöpfe
+    constexpr int cellW = 96, sliderH = 118;
+    freqSlider.setBounds (inner.removeFromLeft (cellW).withHeight (sliderH));
+    gainSlider.setBounds (inner.removeFromLeft (cellW).withHeight (sliderH));
+    qSlider.setBounds    (inner.removeFromLeft (cellW).withHeight (sliderH));
 
-    bottom.removeFromLeft (24);
-    auto ctl = bottom.removeFromLeft (180);
-    onButton.setBounds (ctl.removeFromTop (28).withTrimmedTop (4));
-    ctl.removeFromTop (6);
-    slopeLabel.setBounds (ctl.removeFromTop (16));
-    slopeBox.setBounds (ctl.removeFromTop (26).withWidth (130));
+    inner.removeFromLeft (22);
+    // Spalte 3: Band an/aus, Flanke
+    auto ctl = inner.removeFromLeft (140);
+    onLabelArea = ctl.removeFromTop (22).withTrimmedTop (4);
+    onButton.setBounds (ctl.removeFromTop (38).withWidth (118));
+    ctl.removeFromTop (8);
+    slopeLabelArea = ctl.removeFromTop (18);
+    slopeBox.setBounds (ctl.removeFromTop (28).withWidth (128));
 
-    bottom.removeFromLeft (16);
-    hintLabel.setBounds (bottom.removeFromBottom (20));
+    // Spalte 4: Pegel
+    outSlider.setBounds (inner.withSizeKeepingCentre (juce::jmin (110, inner.getWidth()), inner.getHeight()).withHeight (sliderH));
+
+    renderTextures();
 }
