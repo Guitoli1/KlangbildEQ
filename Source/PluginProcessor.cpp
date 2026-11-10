@@ -1,5 +1,6 @@
 #include "PluginProcessor.h"
 #include "PluginEditor.h"
+#include "ScaledEditor.h"
 
 namespace
 {
@@ -284,7 +285,7 @@ void KlangbildAudioProcessor::setStateInformation (const void* data, int sizeInB
 
 juce::AudioProcessorEditor* KlangbildAudioProcessor::createEditor()
 {
-    return new KlangbildAudioProcessorEditor (*this);
+    return new kb::ScaledEditor (*this, new KlangbildAudioProcessorEditor (*this));
 }
 
 juce::AudioProcessor* JUCE_CALLTYPE createPluginFilter()
